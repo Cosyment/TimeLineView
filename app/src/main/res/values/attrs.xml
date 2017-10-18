@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="TimeLineView">
+        <attr name="titleTextSize" format="dimension"/>
+        <attr name="titleTextColor" format="color"/>
+        <attr name="dateTextSize" format="dimension"/>
+        <attr name="dateTextColor" format="color"/>
+        <attr name="circleRadius" format="dimension"/>
+        <attr name="circleColor" format="color"/>
+        <attr name="currentCircleColor" format="color"/>
+        <attr name="lineColor" format="color"/>
+    </declare-styleable>
+</resources>
