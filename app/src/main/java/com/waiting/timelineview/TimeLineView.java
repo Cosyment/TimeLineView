@@ -2,15 +2,16 @@ package com.waiting.timelineview;
 
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.util.AttributeSet;
-import android.util.DisplayMetrics;
 import android.view.View;
-import android.view.WindowManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,10 @@ import java.util.List;
 public class TimeLineView extends View {
 
     private Context mContext;
+
+    private final static int POINT_GRAVITY_TOP = 0;
+    private final static int POINT_GRAVITY_CENTER = 1;
+    private final static int POINT_GRAVITY_BOTTOM = 2;
 
     /**
      * 右侧点
@@ -40,10 +45,20 @@ public class TimeLineView extends View {
      */
     private int mCurrentCircleColor;
 
+    private Drawable mCurrentDrawable;
+    private Drawable mDefaultDrawable;
+    private Bitmap mBitmap;
+    private Drawable mLastDrawable;
+    private Drawable mErrorDrawable;
+
     /**
      * 圆半径
      */
     private float mRadius = 20f;
+
+    private float mCurrentRadius = mRadius;
+
+    private float mDefaultRadius = mCurrentRadius;
 
     /**
      * 线条
@@ -80,6 +95,8 @@ public class TimeLineView extends View {
      */
     private int mDateColor;
 
+    private int mPointGravity;
+
     /**
      * 日期文字大小
      */
@@ -93,7 +110,7 @@ public class TimeLineView extends View {
     /**
      * 默认item间隔
      */
-    private float mVerticalSpacing = 60f;
+    private float mVerticalSpacing = 100f;
 
     /**
      * 画笔宽度
@@ -103,7 +120,7 @@ public class TimeLineView extends View {
     /**
      * 当前步骤
      */
-    private int mCurrentItem = -1;
+    private int mCurrentItem = -1, mErrorItem = -1;
 
 
     public TimeLineView(Context context) {
@@ -125,6 +142,23 @@ public class TimeLineView extends View {
         mTitleSize = typedArray.getDimension(R.styleable.TimeLineView_titleTextSize, 14);
         mDateColor = typedArray.getColor(R.styleable.TimeLineView_dateTextColor, ContextCompat.getColor(context, R.color.colorAccent));
         mDateSize = typedArray.getDimension(R.styleable.TimeLineView_dateTextSize, 12);
+        mPointGravity = typedArray.getInteger(R.styleable.TimeLineView_pointGravity, POINT_GRAVITY_TOP);
+        mCurrentDrawable = typedArray.getDrawable(R.styleable.TimeLineView_currentDrawable);
+        if (mCurrentDrawable == null) {
+            mCurrentDrawable = getResources().getDrawable(R.mipmap.ic_time_line_current);
+        }
+
+        mDefaultDrawable = typedArray.getDrawable(R.styleable.TimeLineView_drawable);
+        if (mDefaultDrawable == null)
+            mDefaultDrawable = getResources().getDrawable(R.mipmap.ic_time_line_time);
+
+        mLastDrawable = typedArray.getDrawable(R.styleable.TimeLineView_lastDrawable);
+        if (mLastDrawable == null)
+            mLastDrawable = mDefaultDrawable;
+
+        mErrorDrawable = typedArray.getDrawable(R.styleable.TimeLineView_errorDrawable);
+        if (mErrorDrawable == null)
+            mErrorDrawable = getResources().getDrawable(R.mipmap.error);
 
         typedArray.recycle();
         init(context);
@@ -149,6 +183,7 @@ public class TimeLineView extends View {
         mDatePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mDatePaint.setColor(mDateColor);
         mDatePaint.setTextSize(mDateSize);
+
     }
 
     @Override
@@ -156,32 +191,95 @@ public class TimeLineView extends View {
         super.onDraw(canvas);
 
         int size = mItems.size();
-        float marginLeft = 40;
+        float marginLeft = 0;
         float itemHeight = 0f;
+        float textMarginLeft = 10;
+        float textMarginTop = 15;
         Rect rect = new Rect();
+        Rect dataRect = new Rect();
         float textHeight;
+        float radiusOffset;
+        boolean selected;
+        float currentStartY, pointStartY = 0, lineStartY = 0, lineStopY = 0, textStartY;
         for (int i = 0; i < size; i++) {
             Item item = mItems.get(i);
-            if (mCurrentItem <= i) {
-                mCirclePaint.setColor(mCurrentCircleColor);
-            } else {
-                mCirclePaint.setColor(mCircleColor);
-            }
-
-            canvas.drawCircle(marginLeft + mRadius, mRadius + itemHeight * i + mStrokeWidth, mRadius, mCirclePaint);
             String title = item.title;
             String date = item.date;
-            mTitlePaint.getTextBounds(title, 0, title.length(), rect);
-            textHeight = rect.height();
-            canvas.drawText(title, marginLeft + mRadius * 2 + 10, textHeight + itemHeight * i, mTitlePaint);
-            canvas.drawText(date, marginLeft + mRadius * 2 + 10, textHeight * 2 + 10 + itemHeight * i, mDatePaint);
 
-            itemHeight = (textHeight * 2 + mVerticalSpacing);
+            mTitlePaint.getTextBounds(title, 0, title.length(), rect);
+            mTitlePaint.getTextBounds(date, 0, date.length(), dataRect);
+            textHeight = rect.height() + dataRect.height() + textMarginTop;
+
+            if (i <= mCurrentItem || i <= mErrorItem) {
+                selected = true;
+                mBitmap = ((BitmapDrawable) mCurrentDrawable).getBitmap();
+                mDefaultRadius = mCurrentRadius = mBitmap.getWidth() / 2;
+                if (mErrorItem > 0 && i == mErrorItem) {
+                    mBitmap = ((BitmapDrawable) mErrorDrawable).getBitmap();
+                    mDefaultRadius = mBitmap.getWidth() / 2;
+                }
+            } else {
+                selected = false;
+
+                if (i == size - 1 && mLastDrawable != null) {
+                    mBitmap = ((BitmapDrawable) mLastDrawable).getBitmap();
+                } else
+                    mBitmap = ((BitmapDrawable) mDefaultDrawable).getBitmap();
+                mDefaultRadius = mBitmap.getWidth() / 2;
+            }
+
+            radiusOffset = mCurrentRadius - mDefaultRadius;
+            mRadius = mDefaultRadius + radiusOffset;
+
+            currentStartY = itemHeight * i;
+
+            switch (mPointGravity) {
+                case POINT_GRAVITY_TOP:
+                    pointStartY = currentStartY;
+                    break;
+                case POINT_GRAVITY_CENTER:
+                    pointStartY = currentStartY + textHeight / 2 - (selected ? mCurrentRadius : mDefaultRadius);
+                    break;
+                case POINT_GRAVITY_BOTTOM:
+                    pointStartY = currentStartY + textHeight - (selected ? mCurrentRadius * 2 : mDefaultRadius * 2);
+                    break;
+            }
+
+            textStartY = currentStartY - radiusOffset + rect.height();
+
+            if (mBitmap != null && !mBitmap.isRecycled()) {
+                canvas.drawBitmap(mBitmap, marginLeft + radiusOffset,
+                        pointStartY - (selected ? 0 : radiusOffset), mCirclePaint);
+            }
+
+            canvas.drawText(title, marginLeft + mRadius * 2 + textMarginLeft, textStartY, mTitlePaint);
+            canvas.drawText(date, marginLeft + mRadius * 2 + textMarginLeft, textStartY + dataRect.height() + textMarginTop, mDatePaint);
+
+            itemHeight = (textHeight + mVerticalSpacing);
 
             if (i < size - 1) {
-                float startY = itemHeight * i + mRadius * 2 + mStrokeWidth * 2 - 3;
-                float stopY = startY + itemHeight - mRadius * 2;
-                canvas.drawLine(marginLeft + mRadius, startY, marginLeft + mRadius, stopY, mLinePaint);
+                if (i == mCurrentItem) {
+                    radiusOffset = mCurrentDrawable.getIntrinsicWidth() / 2 - mDefaultDrawable.getIntrinsicWidth() / 2;
+                } else if (i == mErrorItem) {
+                    radiusOffset = mCurrentDrawable.getIntrinsicWidth() / 2 - mErrorDrawable.getIntrinsicWidth() / 2;
+                }
+
+
+                switch (mPointGravity) {
+                    case POINT_GRAVITY_TOP:
+                        lineStartY = currentStartY + mRadius * 2 + mStrokeWidth + radiusOffset + (selected ? 0 : -mDefaultRadius);
+                        lineStopY = lineStartY + itemHeight - mRadius * 2 - radiusOffset * 2 + (selected ? -5 : radiusOffset * 2 + 1);
+                        break;
+                    case POINT_GRAVITY_CENTER:
+                        lineStartY = currentStartY + textHeight / 2 + (selected ? mCurrentRadius + mStrokeWidth : mDefaultRadius) + radiusOffset;
+                        lineStopY = lineStartY + itemHeight - (selected ? mCurrentRadius * 2 : mDefaultRadius * 2) - radiusOffset - mStrokeWidth;
+                        break;
+                    case POINT_GRAVITY_BOTTOM:
+                        lineStartY = currentStartY + textHeight + mStrokeWidth + radiusOffset + (selected ? 0 : -radiusOffset);
+                        lineStopY = lineStartY + itemHeight - mRadius * 2 - radiusOffset + (selected ? 1 : radiusOffset + 1);
+                        break;
+                }
+                canvas.drawLine(marginLeft + mRadius, lineStartY - radiusOffset - mStrokeWidth, marginLeft + mRadius, lineStopY, mLinePaint);
             }
         }
     }
@@ -194,6 +292,14 @@ public class TimeLineView extends View {
         } else {
             mCurrentItem = position;
         }
+        invalidate();
+    }
+
+    public void setErrorItem(int position) {
+        if (position >= mItems.size()) {
+            mErrorItem = mItems.size() - 1;
+        } else mErrorItem = position;
+
         invalidate();
     }
 
@@ -215,13 +321,4 @@ public class TimeLineView extends View {
             this.checked = checked;
         }
     }
-
-    public static int getScreenWidth(Context context) {
-        WindowManager wm = (WindowManager) context
-                .getSystemService(Context.WINDOW_SERVICE);
-        DisplayMetrics outMetrics = new DisplayMetrics();
-        wm.getDefaultDisplay().getMetrics(outMetrics);
-        return outMetrics.widthPixels;
-    }
-
 }

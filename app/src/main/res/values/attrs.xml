@@ -9,5 +9,14 @@
         <attr name="circleColor" format="color"/>
         <attr name="currentCircleColor" format="color"/>
         <attr name="lineColor" format="color"/>
+        <attr name="currentDrawable" format="reference"/>
+        <attr name="drawable" format="reference"/>
+        <attr name="lastDrawable" format="reference"/>
+        <attr name="errorDrawable" format="reference"/>
+        <attr name="pointGravity" format="enum">
+            <enum name="top" value="0"/>
+            <enum name="center" value="1"/>
+            <enum name="bottom" value="2"/>
+        </attr>
     </declare-styleable>
 </resources>

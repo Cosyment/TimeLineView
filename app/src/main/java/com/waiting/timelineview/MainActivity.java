@@ -18,13 +18,14 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mTimeLineView = findViewById(R.id.timeLine);
+        mTimeLineView = (TimeLineView) findViewById(R.id.timeLine);
 
         List<TimeLineView.Item> items = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 8; i++) {
             items.add(new TimeLineView.Item(i == 3 ? "测试 测试 测试 测试 测试 测试 测试 测试 测试 测试 测试 " + i : "测试 ", "2017-09-10", i == 3));
         }
         mTimeLineView.setItems(items);
-        mTimeLineView.setCurrentItem(3);
+        mTimeLineView.setCurrentItem(4);
+        mTimeLineView.setErrorItem(1);
     }
 }
